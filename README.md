@@ -11,6 +11,18 @@ pip install -U pip
 pip install -e ".[dev]"
 ```
 
+**Python:** 3.11 or newer (`requires-python` in `pyproject.toml`).
+
+**Installed by the command above** (versions are lower bounds; `pip` resolves current releases):
+
+| Role | Packages |
+|------|----------|
+| **Core pipeline & model** | `pandas`, `pyarrow`, `numpy`, `scikit-learn`, `joblib`, `typer` |
+| **Web UI** | `fastapi`, `uvicorn[standard]` |
+| **Development / tests** (the `[dev]` extra) | `pytest`, `httpx`, `pytest-cov` |
+
+For a minimal install without test tooling, use `pip install -e .` instead of `pip install -e ".[dev]"`.
+
 **Included in this repo:** `yellow_tripdata_2025-01.parquet`, `yellow_tripdata_2025-02.parquet`, and `yellow_tripdata_2025-03.parquet` in the project root (~190 MB total) so `build-hourly` can run without a separate download. For other months or updates, get files from the TLC trip record page ([NYC TLC data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)) and use `build-hourly --input-dir` pointing at that folder.
 
 ## Build the hourly panel
