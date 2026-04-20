@@ -11,7 +11,7 @@ pip install -U pip
 pip install -e ".[dev]"
 ```
 
-Download **Yellow Taxi** monthly Parquet from the TLC trip record page (search for “TLC trip record data” / [NYC TLC data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)), then put `yellow_tripdata_2025-*.parquet` in the project root (or point `build-hourly --input-dir` elsewhere). **Those raw files are not stored in Git** (too large for GitHub); each clone must add them locally before `build-hourly`.
+**Included in this repo:** `yellow_tripdata_2025-01.parquet`, `yellow_tripdata_2025-02.parquet`, and `yellow_tripdata_2025-03.parquet` in the project root (~190 MB total) so `build-hourly` can run without a separate download. For other months or updates, get files from the TLC trip record page ([NYC TLC data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)) and use `build-hourly --input-dir` pointing at that folder.
 
 ## Build the hourly panel
 
