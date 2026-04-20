@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NYC Yellow Taxi — next-hour demand</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <style>
+      :root {
+        --nyc-navy: #0a1628;
+        --nyc-deep: #111d35;
+        --nyc-slate: #1e2d4a;
+        --nyc-grid: rgba(100, 180, 255, 0.06);
+        --taxi-yellow: #f7c948;
+        --taxi-gold: #e6a800;
+        --window-glow: rgba(255, 213, 120, 0.12);
+        --text: #f0f4fc;
+        --text-muted: #9cb0d0;
+        --card: rgba(18, 32, 58, 0.88);
+        --card-border: rgba(120, 160, 220, 0.22);
+        --success: #3ecf8e;
+        --success-bg: rgba(62, 207, 142, 0.12);
+        --warn: #ffb020;
+        --warn-bg: rgba(255, 176, 32, 0.1);
+        --radius: 16px;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "SF Pro Text", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+        color: var(--text);
+        background: var(--nyc-navy);
+        line-height: 1.45;
+      }
+
+      /* NYC photo (bundled) + read overlays for text contrast */
+      .page-bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background-color: var(--nyc-navy);
+        background-image:
+          linear-gradient(180deg, rgba(6, 12, 26, 0.88) 0%, rgba(6, 12, 26, 0.55) 42%, rgba(6, 12, 26, 0.9) 100%),
+          radial-gradient(ellipse 100% 70% at 50% 0%, rgba(30, 80, 160, 0.25) 0%, transparent 55%),
+          url("/static/nyc-background.jpg");
+        background-size: cover, cover, cover;
+        background-position: center, center, center 35%;
+        background-repeat: no-repeat;
+      }
+
+      .page-bg::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(90deg, var(--nyc-grid) 1px, transparent 1px),
+          linear-gradient(var(--nyc-grid) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(180deg, transparent 0%, black 35%, black 100%);
+        opacity: 0.9;
+      }
+
+      /* Optional silhouette — kept light so the photo stays the hero */
+      .skyline {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: min(38vh, 220px);
+        opacity: 0.18;
+      }
+
+      .skyline svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 28px 20px 100px;
+      }
+
+      /* Hero */
+      .hero {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+
+      .hero-badge {
+        flex-shrink: 0;
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        background: linear-gradient(145deg, var(--taxi-yellow), var(--taxi-gold));
+        display: grid;
+        place-items: center;
+        box-shadow: 0 8px 28px rgba(247, 201, 72, 0.35);
+      }
+
+      .hero-badge img {
+        width: 34px;
+        height: 34px;
+        display: block;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+      }
+
+      .hero h1 {
+        margin: 0 0 6px;
+        font-size: clamp(1.35rem, 4vw, 1.65rem);
+        font-weight: 750;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+      }
+
+      .hero h1 span {
+        color: var(--taxi-yellow);
+      }
+
+      .hero-sub {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        max-width: 36em;
+      }
+
+      .hero-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--card-border);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .tag svg {
+        width: 14px;
+        height: 14px;
+        opacity: 0.85;
+      }
+
+      /* Card */
+      .card {
+        border-radius: var(--radius);
+        border: 1px solid var(--card-border);
+        background: var(--card);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: var(--shadow);
+        padding: 22px 20px 20px;
+      }
+
+      .card-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 6px;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .card-title svg {
+        width: 22px;
+        height: 22px;
+        color: var(--taxi-yellow);
+      }
+
+      .card-desc {
+        margin: 0 0 18px;
+        font-size: 0.88rem;
+        color: var(--text-muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px 18px;
+      }
+
+      @media (max-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .field label {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        line-height: 1.35;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+      }
+
+      .field label svg {
+        width: 18px;
+        height: 18px;
+        color: var(--taxi-yellow);
+        opacity: 0.95;
+      }
+
+      .field input,
+      .field select {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(8, 16, 32, 0.55);
+        color: var(--text);
+        font-size: 1rem;
+      }
+
+      .field input:focus,
+      .field select:focus {
+        outline: none;
+        border-color: rgba(247, 201, 72, 0.55);
+        box-shadow: 0 0 0 3px rgba(247, 201, 72, 0.15);
+      }
+
+      .field select:disabled {
+        opacity: 0.88;
+        cursor: not-allowed;
+      }
+
+      .pickup-auto-note {
+        grid-column: 1 / -1;
+        margin: 0 0 8px;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        color: var(--text-muted);
+      }
+
+      .pickup-auto-note.warn {
+        color: #ffc9a8;
+      }
+
+      .pickup-summary-panel {
+        grid-column: 1 / -1;
+        display: none;
+        margin: 0 0 12px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(120, 160, 220, 0.22);
+        background: rgba(10, 22, 44, 0.55);
+      }
+
+      .pickup-summary-panel.visible {
+        display: block;
+      }
+
+      .pickup-summary-title {
+        margin: 0 0 10px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .pickup-summary-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 0.84rem;
+        line-height: 1.65;
+        color: var(--text-muted);
+      }
+
+      .pickup-summary-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding: 6px 0;
+      }
+
+      .pickup-summary-list li:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      .pickup-summary-list strong {
+        color: var(--taxi-yellow);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .pickup-setup-banner {
+        grid-column: 1 / -1;
+        display: none;
+        margin: 0 0 12px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 140, 90, 0.35);
+        background: rgba(60, 28, 18, 0.35);
+        font-size: 0.84rem;
+        line-height: 1.5;
+        color: #ffd4c4;
+      }
+
+      .pickup-setup-banner.visible {
+        display: block;
+      }
+
+      .manual-demand-fields {
+        display: none;
+        grid-column: 1 / -1;
+        gap: 12px 18px;
+        padding: 14px 0 6px;
+        margin-top: 4px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .manual-demand-fields.visible {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .manual-demand-intro {
+        grid-column: 1 / -1;
+        margin: 0;
+        font-size: 0.86rem;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      @media (max-width: 720px) {
+        .manual-demand-fields.visible {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .hour-pickup-combo {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px 18px;
+        align-items: end;
+        padding-bottom: 2px;
+      }
+
+      .hour-pickup-combo-title {
+        grid-column: 1 / -1;
+        margin: 0 0 2px;
+        font-size: 0.88rem;
+        font-weight: 650;
+        color: rgba(255, 255, 255, 0.88);
+      }
+
+      .pickup-this-hour-column.pickup-this-hour--auto {
+        display: none;
+      }
+
+      @media (max-width: 720px) {
+        .hour-pickup-combo {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .btn-predict:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        filter: grayscale(0.35);
+      }
+
+      .full {
+        grid-column: 1 / -1;
+      }
+
+      .btn-predict {
+        width: 100%;
+        margin-top: 8px;
+        padding: 14px 18px;
+        border: 0;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 750;
+        letter-spacing: 0.02em;
+        color: #141010;
+        background: linear-gradient(180deg, #ffdf6a 0%, var(--taxi-yellow) 45%, var(--taxi-gold) 100%);
+        box-shadow: 0 10px 36px rgba(247, 201, 72, 0.35);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: transform 0.12s ease, filter 0.12s ease;
+      }
+
+      .btn-predict:hover {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+      }
+
+      .btn-predict:active {
+        transform: translateY(0);
+      }
+
+      .btn-predict svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      .btn-ghost {
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(140, 180, 240, 0.35);
+        background: rgba(10, 22, 44, 0.45);
+        color: var(--text-muted);
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.15s ease, color 0.15s ease;
+      }
+
+      .btn-ghost:hover {
+        border-color: rgba(247, 201, 72, 0.45);
+        color: var(--text);
+      }
+
+      .time-reset-row {
+        margin-bottom: 4px;
+      }
+
+      .horizon-note {
+        margin: 0 0 16px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border-left: 3px solid var(--taxi-yellow);
+        background: rgba(12, 24, 48, 0.45);
+        font-size: 0.84rem;
+        line-height: 1.5;
+        color: var(--text-muted);
+      }
+
+      .horizon-note strong {
+        color: var(--text);
+      }
+
+      .result {
+        display: none;
+        margin-top: 18px;
+        padding: 18px 18px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(62, 207, 142, 0.35);
+        background: var(--success-bg);
+      }
+
+      .result-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: var(--success);
+      }
+
+      .result-head svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .result .big {
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--text);
+      }
+
+      .result .hint {
+        margin-top: 10px;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+
+      .err {
+        display: none;
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 107, 107, 0.4);
+        background: rgba(255, 80, 80, 0.1);
+        color: #ffc9c9;
+        font-size: 0.88rem;
+        white-space: pre-wrap;
+      }
+
+      footer {
+        margin-top: 22px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        line-height: 1.55;
+      }
+
+      footer code {
+        font-size: 0.85em;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.28);
+        color: #dde8ff;
+      }
+
+      .map-wrap {
+        margin: 0 0 20px;
+      }
+
+      .map-heading {
+        margin: 0 0 6px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .map-sub {
+        margin: 0 0 10px;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+      }
+
+      #map {
+        width: 100%;
+        height: min(52vh, 420px);
+        min-height: 280px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+        background: rgba(6, 12, 26, 0.6);
+      }
+
+      .zone-readout {
+        margin: 10px 0 0;
+        font-size: 0.88rem;
+        color: var(--text-muted);
+      }
+
+      .zone-readout strong {
+        color: var(--taxi-yellow);
+      }
+
+      .lag-callout {
+        grid-column: 1 / -1;
+        margin: 0 0 4px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(120, 160, 220, 0.2);
+        background: rgba(12, 24, 48, 0.55);
+        font-size: 0.82rem;
+        line-height: 1.5;
+        color: var(--text-muted);
+      }
+
+      .lag-callout strong {
+        color: var(--text);
+        font-weight: 650;
+      }
+
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-bg" aria-hidden="true">
+      <div class="skyline">
+        <svg viewBox="0 0 1200 140" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#1a2840" />
+              <stop offset="100%" stop-color="#0d1524" />
+            </linearGradient>
+          </defs>
+          <rect width="1200" height="140" fill="url(#win)" />
+          <!-- Stylized Manhattan-style silhouette -->
+          <path
+            fill="#0c1828"
+            d="M0,140 L0,95 L35,95 L35,70 L55,70 L55,50 L78,50 L78,75 L100,75 L100,40 L128,40 L128,65 L155,65 L155,35 L185,35 L185,55 L210,55 L210,25 L245,25 L245,60 L275,60 L275,45 L300,45 L300,20 L340,20 L340,55 L375,55 L375,38 L405,38 L405,15 L440,15 L440,50 L475,50 L475,30 L510,30 L510,58 L545,58 L545,42 L580,42 L580,18 L620,18 L620,48 L655,48 L655,32 L695,32 L695,8 L735,8 L735,45 L775,45 L775,28 L815,28 L815,52 L850,52 L850,35 L890,35 L890,12 L930,12 L930,48 L970,48 L970,30 L1010,30 L1010,55 L1045,55 L1045,40 L1080,40 L1080,65 L1115,65 L1115,50 L1150,50 L1150,75 L1185,75 L1185,95 L1200,95 L1200,140 Z"
+          />
+          <g fill="rgba(255, 213, 120, 0.14)">
+            <rect x="120" y="55" width="4" height="6" rx="1" />
+            <rect x="220" y="40" width="4" height="6" rx="1" />
+            <rect x="320" y="30" width="4" height="6" rx="1" />
+            <rect x="420" y="28" width="4" height="6" rx="1" />
+            <rect x="520" y="38" width="4" height="6" rx="1" />
+            <rect x="620" y="25" width="4" height="6" rx="1" />
+            <rect x="720" y="22" width="4" height="6" rx="1" />
+            <rect x="820" y="35" width="4" height="6" rx="1" />
+            <rect x="920" y="25" width="4" height="6" rx="1" />
+            <rect x="1020" y="40" width="4" height="6" rx="1" />
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <header class="hero">
+        <div class="hero-badge" aria-hidden="true">
+          <img src="/static/taxi-icon.svg" width="34" height="34" alt="" />
+        </div>
+        <div>
+          <h1>New York City <span>Yellow Taxi</span><br />Next-hour demand</h1>
+          <p class="hero-sub">
+            One number per run: expected pickups in a TLC zone in the <strong>next clock hour only</strong> (NY time). Baseline model for ORIE
+            5270 — not rider wait times or multi-hour trip “availability.”
+          </p>
+          <div class="hero-tags">
+            <span class="tag">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
+              NYC TLC zones
+            </span>
+            <span class="tag">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l4 4h3v3l4 4-2 2H7L5 15l4-4V6h3l4-4zm0 7.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
+              Forecast +1h
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <section class="card" aria-labelledby="form-heading">
+        <h2 class="card-title" id="form-heading">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4h2v4zm0-6h-2V7h2v4z"/></svg>
+          Model inputs
+        </h2>
+        <p class="card-desc">
+          Choose <strong>where</strong> (TLC zone) and <strong>which hour you are describing</strong>. When the server has your hourly pickups
+          file, <strong>demand and lag features load automatically</strong>. If that file is missing, use the <strong>manual demand fields</strong>
+          (defaults are 0 — predictions are rougher) and you can still run <strong>Predict next hour</strong>.
+        </p>
+        <p class="horizon-note">
+          <strong>Scope:</strong> each prediction is <strong>one hour ahead only</strong> (the hour immediately after the scenario you set). It
+          does not return a range of future hours; wider horizons would need different models or repeated one-hour forecasts.
+        </p>
+
+        <div class="map-wrap">
+          <h3 class="map-heading">Map · NYC five boroughs (TLC zones)</h3>
+          <p class="map-sub">
+            The map is <strong>clamped to NYC</strong> (you cannot pan away to the rest of the world). Polygons show TLC taxi zones used in the
+            training data (EWR / outer NJ zones are omitted from the map only). Click a zone to set <strong>TLC zone ID</strong>, or type an ID
+            manually.
+          </p>
+          <div id="map" aria-label="Interactive map of NYC taxi zones"></div>
+          <p class="zone-readout" id="zone-readout">
+            Selected:
+            <strong id="zone-name-display">click a zone</strong>
+            <span class="mono">· ID <span id="zone-id-display">—</span></span>
+          </p>
+        </div>
+
+        <form id="predict-form" class="grid">
+          <div class="field">
+            <label for="zone_id">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
+              TLC taxi zone (yellow-cab pickup zone ID)
+            </label>
+            <input id="zone_id" name="zone_id" type="number" min="1" max="265" value="237" required />
+          </div>
+          <div class="field">
+            <label for="scenario_date">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7v-5z"/></svg>
+              Scenario date (NY calendar day — when trip history is loaded, defaults to a time inside that data)
+            </label>
+            <input id="scenario_date" name="scenario_date" type="date" required />
+          </div>
+          <div class="hour-pickup-combo">
+            <p class="hour-pickup-combo-title">This moment in New York — <strong>clock hour</strong> and <strong>pickups that same hour</strong> (same zone)</p>
+            <div class="field">
+              <label for="hour">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                NY clock hour (0–23)
+              </label>
+              <input id="hour" name="hour" type="number" min="0" max="23" value="0" required />
+            </div>
+            <div id="pickup-this-hour-field" class="field pickup-this-hour-column">
+              <label for="pickup_count">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4h2v4zm0-6h-2V7h2v4z"/></svg>
+                Pickups this hour
+              </label>
+              <input id="pickup_count" name="pickup_count" type="number" min="0" step="any" value="0" required />
+            </div>
+          </div>
+          <div class="field">
+            <label for="dayofweek">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7v-5z"/></svg>
+              Day of week (follows the scenario date in NY; locked when counts load from the server)
+            </label>
+            <select id="dayofweek" name="dayofweek" required>
+              <option value="0">Monday</option>
+              <option value="1">Tuesday</option>
+              <option value="2">Wednesday</option>
+              <option value="3">Thursday</option>
+              <option value="4">Friday</option>
+              <option value="5">Saturday</option>
+              <option value="6">Sunday</option>
+            </select>
+          </div>
+          <div class="full time-reset-row">
+            <button type="button" id="btn-ny-now" class="btn-ghost">Use current date &amp; hour (New York)</button>
+          </div>
+          <p id="pickup-auto-note" class="pickup-auto-note" aria-live="polite"></p>
+          <div id="pickup-setup-banner" class="pickup-setup-banner" role="region" aria-label="Setup required">
+            <strong>No hourly trip file on the server</strong> — use the demand fields below (0 is allowed) or load pickups and restart, for
+            example:
+            <code style="display: block; margin-top: 8px; font-size: 0.78rem; word-break: break-all"
+              >nyc-taxi-forecast serve --model-path results/baseline_model.joblib --hourly-path results/hourly_pickups.parquet</code>
+            <p id="pickup-setup-detail" style="margin-top: 12px; font-size: 0.82rem; opacity: 0.92; white-space: pre-wrap"></p>
+          </div>
+          <div id="pickup-summary-panel" class="pickup-summary-panel" role="region" aria-label="Demand from data">
+            <p class="pickup-summary-title">Recent demand in this zone (from your hourly file)</p>
+            <ul class="pickup-summary-list">
+              <li><span>This clock hour</span> <strong id="sum-current">—</strong></li>
+              <li><span>Previous hour</span> <strong id="sum-prev">—</strong></li>
+              <li><span>Same time last week</span> <strong id="sum-week">—</strong></li>
+            </ul>
+          </div>
+          <div id="manual-demand-fields" class="manual-demand-fields" aria-label="Manual demand inputs">
+            <p class="manual-demand-intro">
+              <strong>This hour’s pickups</strong> are set next to the clock hour above. Below: <strong>lag-1h</strong> and <strong>lag-168h</strong>
+              (same clock hour last week). Use <strong>0</strong> if you have no history.
+            </p>
+            <div class="field">
+              <label for="pickup_count_lag1">Lag 1h (previous hour)</label>
+              <input id="pickup_count_lag1" name="pickup_count_lag1" type="number" min="0" step="any" value="0" required />
+            </div>
+            <div class="field">
+              <label for="pickup_count_lag168">Lag 168h (same hour last week)</label>
+              <input id="pickup_count_lag168" name="pickup_count_lag168" type="number" min="0" step="any" value="0" required />
+            </div>
+          </div>
+          <div class="full">
+            <button type="submit" class="btn-predict" id="btn-predict" disabled>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+              Predict next hour
+            </button>
+          </div>
+        </form>
+
+        <div class="result" id="resultCard" role="status">
+          <div class="result-head">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+            Expected pickups in the following hour (same zone)
+          </div>
+          <div class="big"><span id="pred-value">0.00</span> <span style="font-size:1rem;font-weight:600;opacity:0.85">trips</span></div>
+          <p class="hint">
+            This is <strong>one hour after</strong> the scenario hour you set — not a multi-hour total. Values may be fractional; round for
+            reporting. Compare to naive baselines in the saved metrics file from training.
+          </p>
+        </div>
+
+        <div class="err" id="errorCard" role="alert"></div>
+      </section>
+
+      <footer>
+        <strong>Model file:</strong> <code id="model-path">…</code><br />
+        <strong>Hourly pickups:</strong> <code id="hourly-path">…</code><br />
+        <strong>API:</strong> <code>POST /api/predict</code> · <code>GET /api/meta</code> · <code>GET /api/pickup-context</code><br />
+        <span style="opacity: 0.85">Background photo: bundled NYC image (see <code>/static/ATTRIBUTIONS.txt</code>).</span>
+      </footer>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+      (function () {
+        var NY_TZ = "America/New_York";
+        var WEEKDAY_TO_NUM = { Sunday: 6, Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5 };
+
+        var autoPickupCounts = false;
+        var pickupContextOk = false;
+        var pickupTimer = null;
+
+        function manualInputsValid() {
+          var z = document.getElementById("zone_id").value;
+          var d = document.getElementById("scenario_date").value;
+          var h = document.getElementById("hour").value;
+          if (z === "" || !d || h === "") return false;
+          var zn = Number(z);
+          if (isNaN(zn) || zn < 1 || zn > 265) return false;
+          var hn = Number(h);
+          if (isNaN(hn) || hn < 0 || hn > 23) return false;
+          var pc = Number(document.getElementById("pickup_count").value);
+          var l1 = Number(document.getElementById("pickup_count_lag1").value);
+          var l168 = Number(document.getElementById("pickup_count_lag168").value);
+          if (isNaN(pc) || pc < 0 || isNaN(l1) || l1 < 0 || isNaN(l168) || l168 < 0) return false;
+          return true;
+        }
+
+        function updatePredictButtonState() {
+          var btn = document.getElementById("btn-predict");
+          if (!btn) return;
+          var canPredict = autoPickupCounts ? pickupContextOk : manualInputsValid();
+          btn.disabled = !canPredict;
+          if (btn.disabled) {
+            btn.title = autoPickupCounts
+              ? "Disabled until demand loads for this zone and time (adjust zone or date/hour if it stays off)."
+              : "Set zone (1–265), date, hour (0–23), and non-negative pickups — lags may be 0.";
+          } else {
+            btn.title = "";
+          }
+        }
+
+        function clearPickupSummary() {
+          ["sum-current", "sum-prev", "sum-week"].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = "—";
+          });
+          document.getElementById("pickup_count").value = "0";
+          document.getElementById("pickup_count_lag1").value = "0";
+          document.getElementById("pickup_count_lag168").value = "0";
+        }
+
+        function nyPartsFromInstant(when) {
+          var fmt = new Intl.DateTimeFormat("en-US", {
+            timeZone: NY_TZ,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "numeric",
+            hourCycle: "h23",
+          });
+          var parts = fmt.formatToParts(when);
+          var y = "",
+            m = "",
+            d = "",
+            h = "";
+          parts.forEach(function (p) {
+            if (p.type === "year") y = p.value;
+            if (p.type === "month") m = p.value;
+            if (p.type === "day") d = p.value;
+            if (p.type === "hour") h = p.value;
+          });
+          if (!y || !m || !d || h === "") return null;
+          return { iso: y + "-" + m + "-" + d, hour: parseInt(h, 10) };
+        }
+
+        async function setScenarioToNyNow() {
+          if (autoPickupCounts) {
+            try {
+              const r = await fetch("/api/meta");
+              const j = await r.json();
+              if (j.default_scenario_date && j.default_scenario_hour != null) {
+                await applyServerScenarioDefaults(j);
+                return;
+              }
+            } catch (e) {}
+          }
+          var p = nyPartsFromInstant(new Date());
+          if (!p) return;
+          document.getElementById("scenario_date").value = p.iso;
+          document.getElementById("hour").value = String(p.hour);
+          var wd = new Intl.DateTimeFormat("en-US", { timeZone: NY_TZ, weekday: "long" }).format(new Date());
+          var n = WEEKDAY_TO_NUM[wd];
+          if (n !== undefined) document.getElementById("dayofweek").value = String(n);
+          schedulePickupContextFetch();
+          updatePredictButtonState();
+        }
+
+        function syncDowFromScenarioDateManual() {
+          if (autoPickupCounts) return;
+          var iso = document.getElementById("scenario_date").value;
+          if (!iso) return;
+          var bits = iso.split("-").map(Number);
+          if (bits.length !== 3 || bits.some(function (x) { return isNaN(x); })) return;
+          var t = new Date(Date.UTC(bits[0], bits[1] - 1, bits[2], 18, 0, 0));
+          var long = new Intl.DateTimeFormat("en-US", { timeZone: NY_TZ, weekday: "long" }).format(t);
+          var n = WEEKDAY_TO_NUM[long];
+          if (n !== undefined) document.getElementById("dayofweek").value = String(n);
+          updatePredictButtonState();
+        }
+
+        async function refreshMeta() {
+          try {
+            const r = await fetch("/api/meta");
+            const j = await r.json();
+            document.getElementById("model-path").textContent = j.model_path || "(unknown)";
+            var hpEl = document.getElementById("hourly-path");
+            if (hpEl) {
+              hpEl.textContent = j.hourly_pickups_path || "(not loaded)";
+            }
+            var setupDetail = document.getElementById("pickup-setup-detail");
+            if (setupDetail) {
+              setupDetail.textContent = j.hourly_load_error || "";
+            }
+            autoPickupCounts = Boolean(j.auto_pickup_counts);
+            applyPickupFieldMode();
+            if (j.auto_pickup_counts && j.default_scenario_date && j.default_scenario_hour != null) {
+              await applyServerScenarioDefaults(j);
+            } else {
+              await setScenarioToNyNow();
+            }
+            updatePredictButtonState();
+          } catch (e) {
+            document.getElementById("model-path").textContent = "(not connected to server)";
+            var hpEl2 = document.getElementById("hourly-path");
+            if (hpEl2) hpEl2.textContent = "(unknown)";
+            var setupDetail2 = document.getElementById("pickup-setup-detail");
+            if (setupDetail2) setupDetail2.textContent = "";
+            autoPickupCounts = false;
+            applyPickupFieldMode();
+            await setScenarioToNyNow();
+            updatePredictButtonState();
+          }
+        }
+
+        function applyPickupFieldMode() {
+          var dow = document.getElementById("dayofweek");
+          var note = document.getElementById("pickup-auto-note");
+          var banner = document.getElementById("pickup-setup-banner");
+          var sumPanel = document.getElementById("pickup-summary-panel");
+          var manualBox = document.getElementById("manual-demand-fields");
+          var pickupThisHourCol = document.getElementById("pickup-this-hour-field");
+          pickupContextOk = false;
+          clearPickupSummary();
+          if (sumPanel) sumPanel.classList.remove("visible");
+          if (manualBox) manualBox.classList.toggle("visible", !autoPickupCounts);
+          if (pickupThisHourCol) pickupThisHourCol.classList.toggle("pickup-this-hour--auto", autoPickupCounts);
+          if (autoPickupCounts) {
+            if (banner) banner.classList.remove("visible");
+            dow.disabled = true;
+            note.classList.remove("warn");
+            note.textContent = "Recent demand loads automatically when you change zone, date, or hour.";
+          } else {
+            if (banner) banner.classList.add("visible");
+            dow.disabled = false;
+            note.classList.remove("warn");
+            note.textContent = "Enter pickups below (0 is fine) or restart with your hourly parquet to auto-fill demand.";
+          }
+          updatePredictButtonState();
+        }
+
+        async function applyServerScenarioDefaults(j) {
+          if (j.default_zone_id != null) {
+            var zi = document.getElementById("zone_id");
+            zi.value = String(j.default_zone_id);
+            zi.dispatchEvent(new Event("input", { bubbles: true }));
+            zi.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          document.getElementById("scenario_date").value = j.default_scenario_date;
+          document.getElementById("hour").value = String(j.default_scenario_hour);
+          if (j.default_dayofweek != null) {
+            document.getElementById("dayofweek").value = String(j.default_dayofweek);
+          }
+          await fetchPickupContext();
+        }
+
+        async function fetchPickupContext() {
+          if (!autoPickupCounts) return;
+          pickupContextOk = false;
+          updatePredictButtonState();
+          var note = document.getElementById("pickup-auto-note");
+          var sumPanel = document.getElementById("pickup-summary-panel");
+          if (sumPanel) sumPanel.classList.remove("visible");
+          clearPickupSummary();
+          var z = document.getElementById("zone_id").value;
+          var d = document.getElementById("scenario_date").value;
+          var h = document.getElementById("hour").value;
+          if (!d || z === "" || h === "") return;
+          var url =
+            "/api/pickup-context?zone_id=" +
+            encodeURIComponent(z) +
+            "&scenario_date=" +
+            encodeURIComponent(d) +
+            "&hour=" +
+            encodeURIComponent(h);
+          try {
+            var r = await fetch(url);
+            var j = await r.json();
+            if (!r.ok || !j.ok) {
+              note.classList.add("warn");
+              note.textContent = (j && j.error) || "No data for that zone and time in your hourly file.";
+              pickupContextOk = false;
+              updatePredictButtonState();
+              return;
+            }
+            note.classList.remove("warn");
+            document.getElementById("pickup_count").value = String(j.pickup_count);
+            document.getElementById("pickup_count_lag1").value = String(j.pickup_count_lag1);
+            document.getElementById("pickup_count_lag168").value = String(j.pickup_count_lag168);
+            document.getElementById("dayofweek").value = String(j.dayofweek);
+            document.getElementById("sum-current").textContent = String(j.pickup_count);
+            document.getElementById("sum-prev").textContent = String(j.pickup_count_lag1);
+            document.getElementById("sum-week").textContent = String(j.pickup_count_lag168);
+            if (sumPanel) sumPanel.classList.add("visible");
+            pickupContextOk = true;
+            updatePredictButtonState();
+            note.textContent = "Demand for this zone and time is loaded from your trip history.";
+          } catch (e) {
+            note.classList.add("warn");
+            note.textContent = "Network error loading demand from the server.";
+            pickupContextOk = false;
+            updatePredictButtonState();
+          }
+        }
+
+        function schedulePickupContextFetch() {
+          clearTimeout(pickupTimer);
+          pickupTimer = setTimeout(fetchPickupContext, 250);
+        }
+
+        ["zone_id", "scenario_date", "hour"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener("change", function () {
+            if (id === "scenario_date") syncDowFromScenarioDateManual();
+            schedulePickupContextFetch();
+            updatePredictButtonState();
+          });
+          el.addEventListener("input", function () {
+            if (id === "scenario_date") syncDowFromScenarioDateManual();
+            schedulePickupContextFetch();
+            updatePredictButtonState();
+          });
+        });
+
+        ["pickup_count", "pickup_count_lag1", "pickup_count_lag168", "dayofweek"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener("change", updatePredictButtonState);
+          el.addEventListener("input", updatePredictButtonState);
+        });
+
+        var btnNy = document.getElementById("btn-ny-now");
+        if (btnNy) btnNy.addEventListener("click", setScenarioToNyNow);
+
+        function formatError(j, r) {
+          if (j && j.error) return j.error;
+          if (j && j.detail) {
+            if (typeof j.detail === "string") return j.detail;
+            try {
+              return JSON.stringify(j.detail);
+            } catch (e) {
+              return String(j.detail);
+            }
+          }
+          return r.statusText || "Request failed";
+        }
+
+        document.getElementById("predict-form").addEventListener("submit", async function (e) {
+          e.preventDefault();
+          if (autoPickupCounts) {
+            await fetchPickupContext();
+          }
+          const errEl = document.getElementById("errorCard");
+          const resEl = document.getElementById("resultCard");
+          errEl.style.display = "none";
+          resEl.style.display = "none";
+
+          if (autoPickupCounts && !pickupContextOk) {
+            errEl.textContent =
+              "Could not load demand for this zone and time. Try another hour inside your file, or check the message above.";
+            errEl.style.display = "block";
+            return;
+          }
+          if (!autoPickupCounts && !manualInputsValid()) {
+            errEl.textContent =
+              "Choose a TLC zone (1–265), scenario date, hour (0–23), and non-negative pickup values (lags may be 0).";
+            errEl.style.display = "block";
+            return;
+          }
+
+          const payload = {
+            zone_id: Number(document.getElementById("zone_id").value),
+            hour: Number(document.getElementById("hour").value),
+            dayofweek: Number(document.getElementById("dayofweek").value),
+            pickup_count: Number(document.getElementById("pickup_count").value),
+            pickup_count_lag1: Number(document.getElementById("pickup_count_lag1").value || 0),
+            pickup_count_lag168: Number(document.getElementById("pickup_count_lag168").value || 0),
+          };
+
+          let r;
+          let j = {};
+          try {
+            r = await fetch("/api/predict", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            j = await r.json();
+          } catch (netErr) {
+            errEl.textContent =
+              "Network error: " +
+              netErr +
+              ". Open this app at http://127.0.0.1:8000 (not as a file:// page).";
+            errEl.style.display = "block";
+            return;
+          }
+
+          if (!r.ok) {
+            errEl.textContent = formatError(j, r);
+            errEl.style.display = "block";
+            return;
+          }
+
+          document.getElementById("pred-value").textContent = Number(j.prediction).toFixed(2);
+          resEl.style.display = "block";
+        });
+
+        function initNycZoneMap() {
+          if (typeof L === "undefined") return;
+          var el = document.getElementById("map");
+          if (!el) return;
+
+          var southWest = L.latLng(40.47, -74.28);
+          var northEast = L.latLng(40.94, -73.65);
+          var nycBounds = L.latLngBounds(southWest, northEast);
+
+          var map = L.map("map", {
+            maxBounds: nycBounds,
+            maxBoundsViscosity: 1.0,
+            minZoom: 10,
+            maxZoom: 17,
+          }).setView([40.75, -73.98], 11);
+
+          L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: "abcd",
+            maxZoom: 20,
+          }).addTo(map);
+
+          var baseStyle = { color: "#5a7aac", weight: 1, fillColor: "#1e3a5c", fillOpacity: 0.32 };
+          var highlightStyle = { color: "#f7c948", weight: 2.5, fillColor: "#f7c948", fillOpacity: 0.42 };
+
+          var zoneGeoLayer = null;
+          var selectedFeatureLayer = null;
+
+          /** Highlight one polygon and update the name/id readouts (does not touch the form field). */
+          function applyZoneHighlight(props, layer) {
+            if (!props || !layer) return;
+            if (zoneGeoLayer && selectedFeatureLayer) {
+              zoneGeoLayer.resetStyle(selectedFeatureLayer);
+            }
+            selectedFeatureLayer = layer;
+            layer.setStyle(highlightStyle);
+            var id = String(props.LocationID);
+            document.getElementById("zone-name-display").textContent = props.zone + " · " + props.borough;
+            document.getElementById("zone-id-display").textContent = id;
+          }
+
+          /**
+           * Map click: set Zone ID input + highlight + readout, and notify listeners.
+           */
+          function updateZoneIdFromMapClick(props, layer) {
+            if (!props || !layer) return;
+            applyZoneHighlight(props, layer);
+            var id = String(props.LocationID);
+            var input = document.getElementById("zone_id");
+            input.value = id;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          /** Follow the numeric Zone ID already in the input (typing or initial load). */
+          function highlightZoneById(id) {
+            if (!zoneGeoLayer || id === null || id === undefined || id === "") return;
+            var n = parseInt(id, 10);
+            if (isNaN(n)) return;
+            zoneGeoLayer.eachLayer(function (ly) {
+              var p = ly.feature && ly.feature.properties;
+              if (p && Number(p.LocationID) === n) {
+                applyZoneHighlight(p, ly);
+              }
+            });
+          }
+
+          fetch("/static/taxi_zones.geojson")
+            .then(function (r) {
+              if (!r.ok) throw new Error("geojson " + r.status);
+              return r.json();
+            })
+            .then(function (geo) {
+              zoneGeoLayer = L.geoJSON(geo, {
+                style: function () {
+                  return baseStyle;
+                },
+                onEachFeature: function (feature, layer) {
+                  layer.on("click", function () {
+                    updateZoneIdFromMapClick(feature.properties, layer);
+                  });
+                },
+              }).addTo(map);
+              if (typeof zoneGeoLayer.bringToFront === "function") {
+                zoneGeoLayer.bringToFront();
+              }
+              map.fitBounds(zoneGeoLayer.getBounds().pad(0.08));
+              highlightZoneById(document.getElementById("zone_id").value);
+            })
+            .catch(function () {
+              el.innerHTML =
+                '<p style="padding:1.25rem;line-height:1.45;color:#faa">Could not load <code>/static/taxi_zones.geojson</code>. Run the app from the project server (not <code>file://</code>).</p>';
+            });
+
+          var zoneInput = document.getElementById("zone_id");
+          function syncMapHighlightFromInput() {
+            highlightZoneById(zoneInput.value);
+          }
+          zoneInput.addEventListener("input", syncMapHighlightFromInput);
+          zoneInput.addEventListener("change", syncMapHighlightFromInput);
+        }
+
+        initNycZoneMap();
+        refreshMeta();
+      })();
+    </script>
+  </body>
+</html>

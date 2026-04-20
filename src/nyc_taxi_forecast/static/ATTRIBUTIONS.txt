@@ -1,0 +1,14 @@
+Background photo (nyc-background.jpg)
+- Source: Unsplash License — https://unsplash.com/license
+- Downloaded from: https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=1600&q=80
+- Suggested report credit: "Background photograph from Unsplash (Unsplash License)."
+
+Taxi icon (taxi-icon.svg)
+- Custom simple vector icon for this course demo (not an official TLC or brand logo).
+
+Taxi zone polygons (taxi_zones.geojson)
+- Derived from the NYC TLC shapefile distributed with Yellow Taxi documentation:
+  https://d37ci6vzurychx.cloudfront.net/misc/taxi_zones.zip
+- Processed locally: simplified geometry, rounded coordinates, and filtered to the
+  five NYC boroughs (Manhattan, Brooklyn, Queens, Bronx, Staten Island) for map UX.
+  Zones outside this filter (e.g. EWR) are not drawn but can still be typed by ID if needed.

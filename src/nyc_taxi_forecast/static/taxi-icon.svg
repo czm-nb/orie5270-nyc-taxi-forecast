@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+  <title>NYC taxi cab</title>
+  <rect x="4" y="22" width="56" height="28" rx="5" fill="#F5C400" stroke="#1a1a1a" stroke-width="2" />
+  <path d="M12 22 L18 12 h28l6 10" stroke="#1a1a1a" stroke-width="2" fill="#E6B000" />
+  <rect x="14" y="28" width="16" height="10" rx="1" fill="#1a2840" opacity="0.85" />
+  <rect x="34" y="28" width="16" height="10" rx="1" fill="#1a2840" opacity="0.85" />
+  <circle cx="16" cy="52" r="5" fill="#222" stroke="#111" stroke-width="1.5" />
+  <circle cx="48" cy="52" r="5" fill="#222" stroke="#111" stroke-width="1.5" />
+  <circle cx="16" cy="52" r="2" fill="#666" />
+  <circle cx="48" cy="52" r="2" fill="#666" />
+  <rect x="26" y="34" width="12" height="3" rx="1" fill="#111" opacity="0.35" />
+</svg>

@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+results/
+.coverage
+*.egg-info/
+# Raw TLC monthly files are large (~200MB+); download per README — do not commit.
+yellow_tripdata_*.parquet

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nyc-taxi-forecast"
+version = "0.1.0"
+description = "Hourly NYC yellow taxi pickup demand by TLC zone (ORIE 5270 scaffold)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pandas>=2.2",
+  "pyarrow>=15",
+  "typer>=0.12",
+  "numpy>=1.26",
+  "scikit-learn>=1.4",
+  "joblib>=1.3",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27", "pytest-cov>=5"]
+
+[project.scripts]
+nyc-taxi-forecast = "nyc_taxi_forecast.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nyc_taxi_forecast = ["static/*.html", "static/*.jpg", "static/*.svg", "static/*.txt", "static/*.geojson"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--cov=nyc_taxi_forecast", "--cov-report=term-missing", "--cov-fail-under=80"]
+
+[tool.coverage.run]
+omit = ["*/nyc_taxi_forecast/__main__.py"]
