@@ -653,9 +653,9 @@
           Model inputs
         </h2>
         <p class="card-desc">
-          Choose <strong>where</strong> (TLC zone) and <strong>which hour you are describing</strong>. When the server has your hourly pickups
-          file, <strong>demand and lag features load automatically</strong>. If that file is missing, use the <strong>manual demand fields</strong>
-          (defaults are 0 — predictions are rougher) and you can still run <strong>Predict next hour</strong>.
+          Choose <strong>where</strong> (TLC zone) and <strong>which hour you are describing</strong>. When the server has the hourly pickups
+          file loaded, <strong>demand and lag features load automatically</strong>. If that file is not loaded, use the <strong>manual demand fields</strong>
+          (defaults are 0; forecasts depend on those inputs) and run <strong>Predict next hour</strong>.
         </p>
         <p class="horizon-note">
           <strong>Scope:</strong> each prediction is <strong>one hour ahead only</strong> (the hour immediately after the scenario you set). It
@@ -729,14 +729,14 @@
           </div>
           <p id="pickup-auto-note" class="pickup-auto-note" aria-live="polite"></p>
           <div id="pickup-setup-banner" class="pickup-setup-banner" role="region" aria-label="Setup required">
-            <strong>No hourly trip file on the server</strong> — use the demand fields below (0 is allowed) or load pickups and restart, for
-            example:
+            <strong>No hourly trip file loaded on the server</strong> — enter demand in the fields below (non-negative values; 0 if unknown) or
+            restart with an hourly Parquet path, for example:
             <code style="display: block; margin-top: 8px; font-size: 0.78rem; word-break: break-all"
               >nyc-taxi-forecast serve --model-path results/baseline_model.joblib --hourly-path results/hourly_pickups.parquet</code>
             <p id="pickup-setup-detail" style="margin-top: 12px; font-size: 0.82rem; opacity: 0.92; white-space: pre-wrap"></p>
           </div>
           <div id="pickup-summary-panel" class="pickup-summary-panel" role="region" aria-label="Demand from data">
-            <p class="pickup-summary-title">Recent demand in this zone (from your hourly file)</p>
+            <p class="pickup-summary-title">Recent demand in this zone (from loaded hourly data)</p>
             <ul class="pickup-summary-list">
               <li><span>This clock hour</span> <strong id="sum-current">—</strong></li>
               <li><span>Previous hour</span> <strong id="sum-prev">—</strong></li>
@@ -746,7 +746,7 @@
           <div id="manual-demand-fields" class="manual-demand-fields" aria-label="Manual demand inputs">
             <p class="manual-demand-intro">
               <strong>This hour’s pickups</strong> are set next to the clock hour above. Below: <strong>lag-1h</strong> and <strong>lag-168h</strong>
-              (same clock hour last week). Use <strong>0</strong> if you have no history.
+              (same clock hour last week). Use <strong>0</strong> when no reliable value is available.
             </p>
             <div class="field">
               <label for="pickup_count_lag1">Lag 1h (previous hour)</label>
@@ -952,7 +952,7 @@
             if (banner) banner.classList.add("visible");
             dow.disabled = false;
             note.classList.remove("warn");
-            note.textContent = "Enter pickups below (0 is fine) or restart with your hourly parquet to auto-fill demand.";
+            note.textContent = "Enter demand below or restart the server with an hourly Parquet path to enable auto-fill.";
           }
           updatePredictButtonState();
         }

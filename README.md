@@ -1,6 +1,6 @@
-# NYC Yellow Taxi — hourly pickup demand (scaffold)
+# NYC Yellow Taxi — hourly pickup demand by zone
 
-This repo contains a small Python package that turns TLC Yellow Taxi Parquet files into **hourly pickup counts by TLC taxi zone** (`PULocationID`), using **America/New_York** hour buckets.
+This repository implements a pipeline from TLC Yellow Taxi Parquet files to **hourly pickup counts by TLC taxi zone** (`PULocationID`), using **America/New_York** hour buckets, plus a baseline next-hour demand model and a small local web UI.
 
 ## Setup
 
@@ -44,7 +44,7 @@ Writes:
 
 ## Interactive HTML predictor (local)
 
-The UI is **plain HTML + JavaScript** (no Jinja): NYC night-sky styling, taxi-yellow accents, a skyline silhouette, and inline SVG icons on key inputs. The browser calls **`POST /api/predict`** (JSON) and **`GET /api/meta`** / **`GET /api/pickup-context`** for setup. Use the server URL below—**do not open `predict.html` from Finder** (`file://`), or API calls will not reach your app.
+The UI is **HTML and JavaScript** served by FastAPI (no Jinja templates). The browser calls **`POST /api/predict`** (JSON) and **`GET /api/meta`** / **`GET /api/pickup-context`** for configuration. **Serve the app with Uvicorn** and open the URL below; opening the static page via a **`file://`** URL will not reach the API.
 
 Run **`serve` from the project root** (so `results/…` paths resolve). The CLI **defaults** `--hourly-path` to `results/hourly_pickups.parquet` (same default as `train-baseline`), so the usual command is:
 
@@ -74,17 +74,12 @@ The map uses **Leaflet** + **CARTO dark tiles** (loaded from the public CDN when
 pytest
 ```
 
-## Reliability: what you can honestly claim
+## Scope and limitations
 
-**Pipeline / code reliability (high for a course project):** the path from raw Parquet → hourly counts → dense panel → labels → train/test split is **deterministic**, **unit-tested**, and **reproducible** if you pin Python dependency versions and keep the same raw inputs.
+**Pipeline and software:** Raw TLC Parquet → hourly aggregates → dense panel → labels → train/test split is **deterministic** and covered by **`pytest`** under `tests/`. Reproducibility assumes the same input files and a consistent Python environment (see `pyproject.toml`).
 
-**Forecasting accuracy / scientific reliability (modest):** the shipped model is a **strong baseline**, not a state-of-the-art spatio-temporal forecaster.
+**Model:** The baseline is a gradient-boosted regressor on tabular zone–time features with same-zone lags; it is **not** a full spatio-temporal citywide model. After training, **`results/baseline_metrics.json`** reports test **MAE/RMSE** relative to a **global-mean** naive baseline on the same holdout. Regression outputs may be **fractional**; treat them as expected demand and round if reporting integer counts.
 
-- **Evidence it beats a silly baseline:** `results/baseline_metrics.json` compares test **MAE/RMSE** against a **global-mean** naive predictor on the same holdout.
-- **Important limitations for your write-up:**
-  - Predictions can be **fractional** (regression output); counts should be interpreted as **expected demand**, then optionally rounded.
-  - The web UI **auto-fills** demand and lags when the server loads `hourly_pickups.parquet`; without it you can still predict using **manual** inputs (zeros allowed, but outputs may be **weak or misleading** if the numbers are not grounded in real demand).
-  - **No spatial coupling across zones** (each row is still “tabular zone features + lags”), so it will miss true city-wide shock patterns unless they are already encoded in the lags/current count.
-  - **No uncertainty intervals** (no conformal / quantile / probabilistic model).
+**Web UI:** When **`hourly_pickups.parquet`** is loaded on the server, demand and lag fields are filled from that file. If it is not loaded, values may be entered manually (non-negative; zeros allowed); forecasts depend on the quality of those inputs.
 
-If your rubric asks for “reliability,” separate **software correctness** (tests, leakage-safe split definition, documented filters) from **model performance** (metrics on holdout + limitations).
+**Not modeled:** Direct cross-zone coupling beyond what appears in the chosen features, and **no** predictive uncertainty intervals (e.g. quantiles or conformal bands).
