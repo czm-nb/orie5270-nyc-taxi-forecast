@@ -2,6 +2,16 @@
 
 This repository implements a pipeline from TLC Yellow Taxi Parquet files to **hourly pickup counts by TLC taxi zone** (`PULocationID`), using **America/New_York** hour buckets, plus a baseline next-hour demand model and a small local web UI.
 
+## Repository layout
+
+| Path | Purpose |
+|------|---------|
+| **`data/original_data/`** | TLC Yellow Taxi monthly Parquet inputs (`yellow_tripdata_*.parquet`, Jan–Mar 2025). See `data/README.md`. |
+| **`analysis/`** | Optional space for notebooks or exploratory work (see `analysis/README.md`). |
+| **`src/nyc_taxi_forecast/`** | Python package: I/O, cleaning, hourly aggregation, panel, baseline model, FastAPI web UI. |
+| **`tests/`** | `pytest` suite. |
+| **`results/`** | Generated outputs (`build-hourly`, `train-baseline`); created locally and **gitignored**. |
+
 ## Setup
 
 ```bash
@@ -23,13 +33,15 @@ pip install -e ".[dev]"
 
 For a minimal install without test tooling, use `pip install -e .` instead of `pip install -e ".[dev]"`.
 
-**Included in this repo:** `yellow_tripdata_2025-01.parquet`, `yellow_tripdata_2025-02.parquet`, and `yellow_tripdata_2025-03.parquet` in the project root (~190 MB total) so `build-hourly` can run without a separate download. For other months or updates, get files from the TLC trip record page ([NYC TLC data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)) and use `build-hourly --input-dir` pointing at that folder.
+**Included in this repo:** the same three Parquet files under **`data/original_data/`** (~190 MB total) so `build-hourly` can run without a separate download. For other months or updates, download from the TLC trip record page ([NYC TLC data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)) into that folder (or pass `--input-dir` to another directory).
 
 ## Build the hourly panel
 
 ```bash
-nyc-taxi-forecast build-hourly --input-dir .
+nyc-taxi-forecast build-hourly
 ```
+
+(Default `--input-dir` is `data/original_data`. To use another folder: `nyc-taxi-forecast build-hourly --input-dir /path/to/parquets`.)
 
 Outputs:
 

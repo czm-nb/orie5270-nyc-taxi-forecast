@@ -16,7 +16,10 @@ app = typer.Typer(no_args_is_help=True, add_completion=False)
 
 @app.command("build-hourly")
 def build_hourly(
-    input_dir: Path = typer.Option(Path("."), help="Directory containing yellow trip Parquet files"),
+    input_dir: Path = typer.Option(
+        Path("data/original_data"),
+        help="Directory containing yellow trip Parquet files (default: data/original_data)",
+    ),
     glob_pattern: str = typer.Option("yellow_tripdata_*.parquet", help="Glob pattern under input_dir"),
     output: Path = typer.Option(Path("results/hourly_pickups.parquet"), help="Full hourly panel output"),
     sample_output: Path = typer.Option(
